@@ -184,6 +184,47 @@ public class NoteService {
     }
 
     // ----------------------------------------------------------------
+    //  Teacher-specific methods
+    // ----------------------------------------------------------------
+
+    /**
+     * Returns all notes uploaded by a teacher, newest first.
+     */
+    @Transactional(readOnly = true)
+    public List<NoteResponse> getNotesByTeacher(Long teacherId) {
+        return noteRepository.findByTeacherIdOrderByCreatedAtDesc(teacherId)
+                .stream().map(NoteResponse::fromEntity).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns notes for a specific class+course uploaded by this teacher.
+     * Used on the teacher's class details page.
+     */
+    @Transactional(readOnly = true)
+    public List<NoteResponse> getNotesByTeacherAndClassAndCourse(
+            Long teacherId, String className, String courseName) {
+        return noteRepository.findByTeacherIdAndClassNameAndCourseName(
+                        teacherId, className, courseName)
+                .stream().map(NoteResponse::fromEntity).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns total notes count for a teacher.
+     */
+    public long countNotesByTeacher(Long teacherId) {
+        return noteRepository.countByTeacherId(teacherId);
+    }
+
+    /**
+     * Returns notes count for a teacher per class+course.
+     */
+    public long countNotesByTeacherAndClassAndCourse(
+            Long teacherId, String className, String courseName) {
+        return noteRepository.countByTeacherIdAndClassNameAndCourseName(
+                teacherId, className, courseName);
+    }
+
+    // ----------------------------------------------------------------
     //  Update Note
     // ----------------------------------------------------------------
 
@@ -211,9 +252,22 @@ public class NoteService {
 
     @Transactional
     public void deleteNote(Long id) {
-        if (!noteRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Note not found with id: " + id);
-        }
-        noteRepository.deleteById(id);
+        Note note = noteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Note not found with id: " + id));
+        // Physical file is deleted by the controller/FileStorageService
+        // before calling this method
+        noteRepository.delete(note);
+    }
+
+    /**
+     * Returns the stored filename for a note (used for file deletion on update).
+     */
+    @Transactional(readOnly = true)
+    public String getNoteFilename(Long id) {
+        Note note = noteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Note not found with id: " + id));
+        return note.getFileUrl();
     }
 }

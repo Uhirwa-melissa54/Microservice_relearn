@@ -4,6 +4,7 @@ import com.relearn.auth.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -55,8 +56,22 @@ public class User {
     @Column
     private String academicYear;
 
+    /**
+     * Whether this account is active.
+     * Soft-delete: set to false instead of deleting the record.
+     * Defaults to true on creation.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true;
+
     /** Automatically set when the record is first created */
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /** Automatically updated on every save */
+    @UpdateTimestamp
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
 }

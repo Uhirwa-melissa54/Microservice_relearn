@@ -22,8 +22,8 @@ import org.springframework.context.annotation.Configuration;
     info = @Info(
         title = "Relearn Auth Service API",
         version = "1.0.0",
-        description = "Authentication and user management API for the Relearn school platform. " +
-                      "Handles login, registration, JWT tokens, and user profiles.",
+        description = "Authentication, user management, and admin portal API for the Relearn school platform. " +
+                      "Handles login, registration, JWT tokens, user profiles, and admin operations.",
         contact = @Contact(name = "Relearn Platform", email = "dev@relearn.com")
     ),
     servers = {

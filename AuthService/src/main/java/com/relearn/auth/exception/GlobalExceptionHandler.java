@@ -3,6 +3,7 @@ package com.relearn.auth.exception;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -69,6 +70,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(buildErrorBody(HttpStatus.UNAUTHORIZED, "Invalid email or password", null));
+    }
+
+    // ----------------------------------------------------------------
+    //  Deactivated account (403)
+    // ----------------------------------------------------------------
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<Map<String, Object>> handleDisabledAccount(DisabledException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(buildErrorBody(HttpStatus.FORBIDDEN,
+                        "Account is deactivated. Contact an administrator.", null));
     }
 
     // ----------------------------------------------------------------

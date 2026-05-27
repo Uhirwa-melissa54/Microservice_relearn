@@ -1,5 +1,6 @@
 package com.relearn.assignment.entity;
 
+import com.relearn.assignment.enums.SubmissionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -70,6 +71,15 @@ public class Assignment {
      */
     @Column
     private String fileUrl;
+
+    /**
+     * Defines what type of submission the teacher accepts.
+     * Defaults to BOTH (text or file).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private SubmissionType submissionType = SubmissionType.BOTH;
 
     /** Automatically set when the assignment is first saved */
     @CreationTimestamp

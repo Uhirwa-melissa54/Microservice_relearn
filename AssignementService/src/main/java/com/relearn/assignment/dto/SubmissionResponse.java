@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 /**
  * DTO for returning submission data in API responses.
- * Never exposes the entity directly.
+ * Includes grading fields so students can see their grade and feedback.
  */
 @Getter
 @Setter
@@ -16,29 +16,41 @@ public class SubmissionResponse {
 
     private Long id;
     private Long assignmentId;
-    private String assignmentTitle;   // included for convenience — avoids a second API call
+    private String assignmentTitle;
+    private String assignmentClassName;
+    private String assignmentCourseName;
     private Long studentId;
     private String submissionText;
     private String fileUrl;
     private LocalDateTime submittedAt;
+    private LocalDateTime updatedAt;
     private String status;
 
-    /**
-     * Static factory method — converts a Submission entity to a response DTO.
-     *
-     * @param submission the entity from the database
-     * @return a clean DTO safe to return to the client
-     */
+    // Grading fields — null until teacher grades
+    private Double score;
+    private Double maxScore;
+    private String feedback;
+    private LocalDateTime gradedAt;
+    private Long gradedBy;
+
     public static SubmissionResponse fromEntity(Submission submission) {
-        SubmissionResponse response = new SubmissionResponse();
-        response.setId(submission.getId());
-        response.setAssignmentId(submission.getAssignment().getId());
-        response.setAssignmentTitle(submission.getAssignment().getTitle());
-        response.setStudentId(submission.getStudentId());
-        response.setSubmissionText(submission.getSubmissionText());
-        response.setFileUrl(submission.getFileUrl());
-        response.setSubmittedAt(submission.getSubmittedAt());
-        response.setStatus(submission.getStatus().name());
-        return response;
+        SubmissionResponse r = new SubmissionResponse();
+        r.setId(submission.getId());
+        r.setAssignmentId(submission.getAssignment().getId());
+        r.setAssignmentTitle(submission.getAssignment().getTitle());
+        r.setAssignmentClassName(submission.getAssignment().getClassName());
+        r.setAssignmentCourseName(submission.getAssignment().getCourseName());
+        r.setStudentId(submission.getStudentId());
+        r.setSubmissionText(submission.getSubmissionText());
+        r.setFileUrl(submission.getFileUrl());
+        r.setSubmittedAt(submission.getSubmittedAt());
+        r.setUpdatedAt(submission.getUpdatedAt());
+        r.setStatus(submission.getStatus().name());
+        r.setScore(submission.getScore());
+        r.setMaxScore(submission.getMaxScore());
+        r.setFeedback(submission.getFeedback());
+        r.setGradedAt(submission.getGradedAt());
+        r.setGradedBy(submission.getGradedBy());
+        return r;
     }
 }

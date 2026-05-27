@@ -33,6 +33,8 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/v3/api-docs"
                 ).permitAll()
+                // Admin endpoints — ADMIN role only
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .sessionManagement(session ->

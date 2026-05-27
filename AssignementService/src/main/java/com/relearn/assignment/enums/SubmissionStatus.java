@@ -1,14 +1,16 @@
 package com.relearn.assignment.enums;
 
 /**
- * Represents the lifecycle status of a student's submission.
+ * Lifecycle status of a student's submission.
  *
- * PENDING   -> Submitted on time, waiting for teacher review
- * COMPLETED -> Teacher has reviewed/graded the submission
+ * PENDING   -> Submitted on time, awaiting teacher review
  * LATE      -> Submitted after the assignment deadline
+ * GRADED    -> Teacher has reviewed and assigned a grade
+ * MISSING   -> Assignment deadline passed, student never submitted
  */
 public enum SubmissionStatus {
     PENDING,
-    COMPLETED,
-    LATE
+    LATE,
+    GRADED,
+    MISSING
 }

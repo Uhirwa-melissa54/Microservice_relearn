@@ -70,6 +70,12 @@ public class SecurityConfig {
                 // Student profile endpoints — any authenticated user
                 .requestMatchers("/api/student/**").authenticated()
 
+                // Teacher profile endpoints — TEACHER or ADMIN
+                .requestMatchers("/api/teacher/**").hasAnyRole("TEACHER", "ADMIN")
+
+                // Admin portal — ADMIN only
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                 // All other requests must be authenticated
                 .anyRequest().authenticated()
             )

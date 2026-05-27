@@ -3,6 +3,7 @@ package com.relearn.assignment.repository;
 import com.relearn.assignment.entity.Submission;
 import com.relearn.assignment.enums.SubmissionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -14,32 +15,36 @@ import java.util.Optional;
 @Repository
 public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
-    /**
-     * Find all submissions for a specific assignment.
-     * Teachers use this to see who has submitted and review their work.
-     *
-     * @param assignmentId the ID of the assignment
-     */
     List<Submission> findByAssignmentId(Long assignmentId);
-
-    /**
-     * Find all submissions made by a specific student.
-     * Students use this to track their own submission history.
-     *
-     * @param studentId the ID of the student
-     */
     List<Submission> findByStudentId(Long studentId);
-
-    /**
-     * Find a specific student's submission for a specific assignment.
-     * Used to check if a student has already submitted before allowing a new one.
-     *
-     * @param assignmentId the ID of the assignment
-     * @param studentId    the ID of the student
-     */
     Optional<Submission> findByAssignmentIdAndStudentId(Long assignmentId, Long studentId);
 
-    /** Count submissions for a specific assignment */
+    /** Filter submissions for an assignment by status */
+    List<Submission> findByAssignmentIdAndStatus(Long assignmentId, SubmissionStatus status);
+
+    /** All submissions for assignments created by a specific teacher */
+    @Query("SELECT s FROM Submission s WHERE s.assignment.teacherId = :teacherId")
+    List<Submission> findByTeacherId(Long teacherId);
+
+    /** Pending review submissions for a teacher (PENDING + LATE = not yet graded) */
+    @Query("SELECT s FROM Submission s WHERE s.assignment.teacherId = :teacherId " +
+           "AND s.status IN ('PENDING', 'LATE')")
+    List<Submission> findPendingReviewByTeacherId(Long teacherId);
+
+    /** Count pending review submissions for a teacher */
+    @Query("SELECT COUNT(s) FROM Submission s WHERE s.assignment.teacherId = :teacherId " +
+           "AND s.status IN ('PENDING', 'LATE')")
+    long countPendingReviewByTeacherId(Long teacherId);
+
+    /** Count pending review submissions for a specific assignment */
+    @Query("SELECT COUNT(s) FROM Submission s WHERE s.assignment.id = :assignmentId " +
+           "AND s.status IN ('PENDING', 'LATE')")
+    long countPendingReviewByAssignmentId(Long assignmentId);
+
+    /** Count graded submissions for a specific assignment */
+    long countByAssignmentIdAndStatus(Long assignmentId, SubmissionStatus status);
+
+    /** Count all submissions for an assignment */
     long countByAssignmentId(Long assignmentId);
 
     /** Count submissions by a student with a specific status */
@@ -47,4 +52,25 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     /** Count all submissions by a student */
     long countByStudentId(Long studentId);
+
+    /** Pending review for a specific class+course teacher combo */
+    @Query("SELECT COUNT(s) FROM Submission s WHERE s.assignment.teacherId = :teacherId " +
+           "AND s.assignment.className = :className AND s.assignment.courseName = :courseName " +
+           "AND s.status IN ('PENDING', 'LATE')")
+    long countPendingReviewByTeacherAndClassAndCourse(
+            Long teacherId, String className, String courseName);
+
+    // ----------------------------------------------------------------
+    //  Admin-scoped queries
+    // ----------------------------------------------------------------
+
+    /** Total submissions system-wide by status */
+    long countByStatus(SubmissionStatus status);
+
+    /** Total pending reviews system-wide */
+    @Query("SELECT COUNT(s) FROM Submission s WHERE s.status IN ('PENDING', 'LATE')")
+    long countAllPendingReviews();
+
+    /** Recent submissions system-wide, newest first */
+    List<Submission> findTop10ByOrderBySubmittedAtDesc();
 }

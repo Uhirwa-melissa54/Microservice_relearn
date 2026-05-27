@@ -1,5 +1,6 @@
 package com.relearn.assignment.dto;
 
+import com.relearn.assignment.enums.SubmissionType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -10,11 +11,6 @@ import java.time.LocalDateTime;
 
 /**
  * DTO for creating or updating an assignment.
- *
- * Note: @Future removed from deadline intentionally.
- * When updating an existing assignment, the deadline may already be in the past
- * and we still need to allow edits to other fields (title, description, etc.).
- * Deadline validation (must be future for NEW assignments) is handled in the service layer.
  */
 @Getter
 @Setter
@@ -23,7 +19,6 @@ public class AssignmentRequest {
     @NotBlank(message = "Title is required")
     private String title;
 
-    /** Optional — detailed instructions for the assignment */
     private String description;
 
     @NotNull(message = "Deadline is required")
@@ -44,4 +39,10 @@ public class AssignmentRequest {
 
     /** Optional — URL to an attached file students can download */
     private String fileUrl;
+
+    /**
+     * What type of submission the teacher accepts.
+     * Defaults to BOTH if not specified.
+     */
+    private SubmissionType submissionType;
 }

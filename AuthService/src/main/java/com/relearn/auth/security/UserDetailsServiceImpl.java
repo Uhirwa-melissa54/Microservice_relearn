@@ -14,7 +14,9 @@ import java.util.List;
 
 /**
  * Loads user-specific data for Spring Security during authentication.
- * Spring Security calls this when it needs to verify credentials.
+ *
+ * Also enforces the active flag — deactivated users cannot log in.
+ * Spring Security's DaoAuthenticationProvider calls this on every login attempt.
  */
 @Service
 @RequiredArgsConstructor
@@ -22,13 +24,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    /**
-     * Loads a user by email (we use email as the "username").
-     * Converts the User entity into Spring Security's UserDetails format.
-     *
-     * @param email the email address used as login identifier
-     * @throws UsernameNotFoundException if no user with that email exists
-     */
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
@@ -36,13 +31,24 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException(
                         "User not found with email: " + email));
 
-        // Convert our Role enum to a Spring Security GrantedAuthority
-        // Spring Security expects roles prefixed with "ROLE_"
-        SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
+        SimpleGrantedAuthority authority =
+                new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
 
+        /*
+         * Spring Security's User constructor accepts:
+         *   username, password, enabled, accountNonExpired,
+         *   credentialsNonExpired, accountNonLocked, authorities
+         *
+         * We use user.isActive() for the `enabled` flag.
+         * If active=false, Spring Security throws DisabledException on login.
+         */
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
+                user.isActive(),   // enabled — false blocks login
+                true,              // accountNonExpired
+                true,              // credentialsNonExpired
+                true,              // accountNonLocked
                 List.of(authority)
         );
     }

@@ -26,13 +26,9 @@ public class AssignmentResponse {
     private String academicYear;
     private Long teacherId;
     private String fileUrl;
+    private String submissionType;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-    /**
-     * Computed field: ACTIVE if deadline is in the future, OVERDUE if past.
-     * This is NOT stored in the database — calculated at response time.
-     */
     private String assignmentStatus;
 
     public static AssignmentResponse fromEntity(Assignment assignment) {
@@ -46,14 +42,16 @@ public class AssignmentResponse {
         response.setAcademicYear(assignment.getAcademicYear());
         response.setTeacherId(assignment.getTeacherId());
         response.setFileUrl(assignment.getFileUrl());
+        response.setSubmissionType(
+            assignment.getSubmissionType() != null
+                ? assignment.getSubmissionType().name()
+                : "BOTH"
+        );
         response.setCreatedAt(assignment.getCreatedAt());
         response.setUpdatedAt(assignment.getUpdatedAt());
-
-        // Compute status based on current time vs deadline
         response.setAssignmentStatus(
             LocalDateTime.now().isAfter(assignment.getDeadline()) ? "OVERDUE" : "ACTIVE"
         );
-
         return response;
     }
 }

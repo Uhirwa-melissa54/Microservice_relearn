@@ -20,12 +20,10 @@ public class UserResponse {
     private String role;
     private String className;
     private String academicYear;
+    private boolean active;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
-    /**
-     * Static factory method — converts a User entity to a UserResponse DTO.
-     * Keeps mapping logic in one place.
-     */
     public static UserResponse fromEntity(User user) {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
@@ -34,7 +32,9 @@ public class UserResponse {
         response.setRole(user.getRole().name());
         response.setClassName(user.getClassName());
         response.setAcademicYear(user.getAcademicYear());
+        response.setActive(user.isActive());
         response.setCreatedAt(user.getCreatedAt());
+        response.setUpdatedAt(user.getUpdatedAt());
         return response;
     }
 }

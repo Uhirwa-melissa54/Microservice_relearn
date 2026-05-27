@@ -1,9 +1,9 @@
 package com.relearn.auth.service;
 
-import com.relearn.auth.dto.AssignRoleRequest;
-import com.relearn.auth.dto.ChangePasswordRequest;
-import com.relearn.auth.dto.UserResponse;
+import com.relearn.auth.dto.*;
 import com.relearn.auth.entity.User;
+import com.relearn.auth.enums.ActivityType;
+import com.relearn.auth.enums.Role;
 import com.relearn.auth.exception.ResourceNotFoundException;
 import com.relearn.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,104 +16,45 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Service for user management operations.
- * All methods return DTOs — entities are never exposed directly.
+ * Service for user profile and management operations.
+ * Used by students, teachers, and admins for their own profile actions.
+ * Admin bulk operations are handled by AdminService.
  */
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserRepository     userRepository;
+    private final PasswordEncoder    passwordEncoder;
+    private final ActivityLogService activityLogService;
 
     // ----------------------------------------------------------------
-    //  Get All Users (ADMIN only)
+    //  Generic user lookup (used by multiple roles)
     // ----------------------------------------------------------------
 
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
-        return userRepository.findAll()
-                .stream()
+        return userRepository.findAll().stream()
                 .map(UserResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    // ----------------------------------------------------------------
-    //  Get User by ID
-    // ----------------------------------------------------------------
-
     @Transactional(readOnly = true)
     public UserResponse getUserById(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with id: " + id));
-        return UserResponse.fromEntity(user);
+        return UserResponse.fromEntity(
+                userRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "User not found with id: " + id)));
     }
-
-    // ----------------------------------------------------------------
-    //  Get Current Student Profile (by email from JWT)
-    // ----------------------------------------------------------------
-
-    /**
-     * Returns the profile of the currently authenticated user.
-     * The email is extracted from the JWT token in the security context.
-     *
-     * @param email the authenticated user's email (from JWT)
-     */
-    @Transactional(readOnly = true)
-    public UserResponse getCurrentUserProfile(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: " + email));
-        return UserResponse.fromEntity(user);
-    }
-
-    // ----------------------------------------------------------------
-    //  Change Password
-    // ----------------------------------------------------------------
-
-    /**
-     * Changes the authenticated user's password.
-     * Verifies the current password before applying the change.
-     *
-     * @param email   the authenticated user's email (from JWT)
-     * @param request contains currentPassword and newPassword
-     * @throws BadCredentialsException if currentPassword is wrong
-     */
-    @Transactional
-    public void changePassword(String email, ChangePasswordRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: " + email));
-
-        // Verify the current password matches what's stored
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            throw new BadCredentialsException("Current password is incorrect");
-        }
-
-        // Encode and save the new password
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
-    }
-
-    // ----------------------------------------------------------------
-    //  Assign Role (ADMIN only)
-    // ----------------------------------------------------------------
 
     @Transactional
     public UserResponse assignRole(Long id, AssignRoleRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User not found with id: " + id));
-
         user.setRole(request.getRole());
-        User updatedUser = userRepository.save(user);
-        return UserResponse.fromEntity(updatedUser);
+        return UserResponse.fromEntity(userRepository.save(user));
     }
-
-    // ----------------------------------------------------------------
-    //  Delete User (ADMIN only)
-    // ----------------------------------------------------------------
 
     @Transactional
     public void deleteUser(Long id) {
@@ -121,5 +62,87 @@ public class UserService {
             throw new ResourceNotFoundException("User not found with id: " + id);
         }
         userRepository.deleteById(id);
+    }
+
+    // ----------------------------------------------------------------
+    //  Student / Teacher self-service profile
+    // ----------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUserProfile(String email) {
+        return UserResponse.fromEntity(
+                userRepository.findByEmail(email)
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "User not found with email: " + email)));
+    }
+
+    /**
+     * Changes the authenticated user's own password.
+     * Requires the current password for verification.
+     * Logs PASSWORD_CHANGED activity.
+     */
+    @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found with email: " + email));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BadCredentialsException("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // Log the password change
+        activityLogService.log(
+                ActivityType.PASSWORD_CHANGED,
+                String.format("%s changed their password", user.getFullName()),
+                user.getId(), user.getFullName(), user.getRole().name(),
+                user.getId(), "USER", null
+        );
+    }
+
+    // ----------------------------------------------------------------
+    //  Teacher profile
+    // ----------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public TeacherProfileResponse getTeacherProfile(Long teacherId) {
+        User user = userRepository.findById(teacherId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Teacher not found with id: " + teacherId));
+        return TeacherProfileResponse.fromEntity(user);
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherProfileResponse getTeacherProfileByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Teacher not found with email: " + email));
+        return TeacherProfileResponse.fromEntity(user);
+    }
+
+    // ----------------------------------------------------------------
+    //  Student count queries (used by teacher dashboard)
+    // ----------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public StudentCountResponse getStudentCountByClass(String className) {
+        long count = userRepository.countByClassNameAndRole(className, Role.STUDENT);
+        return new StudentCountResponse(className, count);
+    }
+
+    @Transactional(readOnly = true)
+    public long getTotalStudentCount() {
+        return userRepository.countByRole(Role.STUDENT);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserResponse> getStudentsByClass(String className) {
+        return userRepository.findByClassNameAndRole(className, Role.STUDENT)
+                .stream()
+                .map(UserResponse::fromEntity)
+                .collect(Collectors.toList());
     }
 }

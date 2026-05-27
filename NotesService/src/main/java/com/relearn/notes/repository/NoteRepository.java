@@ -44,4 +44,48 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
 
     /** Count notes for a specific course in a class */
     long countByClassNameAndCourseName(String className, String courseName);
+
+    // ----------------------------------------------------------------
+    //  Teacher-scoped queries
+    // ----------------------------------------------------------------
+
+    /** All notes by a teacher, newest first */
+    List<Note> findByTeacherIdOrderByCreatedAtDesc(Long teacherId);
+
+    /** Teacher's notes for a specific class+course */
+    List<Note> findByTeacherIdAndClassNameAndCourseName(
+            Long teacherId, String className, String courseName);
+
+    /** Teacher's notes for a specific class */
+    List<Note> findByTeacherIdAndClassName(Long teacherId, String className);
+
+    /** Count notes by teacher */
+    long countByTeacherId(Long teacherId);
+
+    /** Count notes by teacher for a specific class+course */
+    long countByTeacherIdAndClassNameAndCourseName(
+            Long teacherId, String className, String courseName);
+
+    /** All distinct class+course combinations for a teacher */
+    @Query("SELECT DISTINCT n.className, n.courseName FROM Note n WHERE n.teacherId = :teacherId")
+    List<Object[]> findDistinctClassCourseByTeacherId(Long teacherId);
+
+    // ----------------------------------------------------------------
+    //  Admin-scoped queries
+    // ----------------------------------------------------------------
+
+    /** All distinct class names that have notes */
+    @Query("SELECT DISTINCT n.className FROM Note n WHERE n.className IS NOT NULL")
+    List<String> findDistinctClassNames();
+
+    /** All distinct course names that have notes */
+    @Query("SELECT DISTINCT n.courseName FROM Note n WHERE n.courseName IS NOT NULL")
+    List<String> findDistinctCourseNames();
+
+    /** All distinct teacher IDs who have uploaded notes */
+    @Query("SELECT DISTINCT n.teacherId FROM Note n WHERE n.teacherId IS NOT NULL")
+    List<Long> findDistinctTeacherIds();
+
+    /** Recent notes system-wide, newest first */
+    List<Note> findTop10ByOrderByCreatedAtDesc();
 }
