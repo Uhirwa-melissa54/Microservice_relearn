@@ -1,10 +1,12 @@
 package com.relearn.auth.service;
 
 import com.relearn.auth.dto.*;
+import com.relearn.auth.entity.AcademicClass;
 import com.relearn.auth.entity.User;
 import com.relearn.auth.enums.ActivityType;
 import com.relearn.auth.enums.Role;
 import com.relearn.auth.exception.ResourceNotFoundException;
+import com.relearn.auth.repository.AcademicClassRepository;
 import com.relearn.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,22 +20,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Admin service — handles all admin-specific operations.
- *
- * Responsibilities:
- * - Dashboard aggregation
- * - User management (create, update, soft-delete, restore)
- * - Class overview
- * - Activity percentage calculation
- *
- * All write operations log an activity event for the audit trail.
- */
 @Service
 @RequiredArgsConstructor
 public class AdminService {
 
     private final UserRepository userRepository;
+    private final AcademicClassRepository classRepository;
     private final ActivityLogService activityLogService;
     private final PasswordEncoder passwordEncoder;
 
@@ -98,18 +90,21 @@ public class AdminService {
                                                  boolean activeOnly, int page, int size) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
+        // Always pass a non-null search string — empty string means "match all"
+        String safeSearch = (search == null || search.isBlank()) ? "" : search.trim();
+
         Page<User> result;
 
         if (role != null && !role.isBlank()) {
             Role roleEnum = Role.valueOf(role.toUpperCase());
             if (activeOnly) {
                 result = userRepository.searchUsersByRoleAndStatus(
-                        roleEnum, true, search, pageable);
+                        roleEnum, true, safeSearch, pageable);
             } else {
-                result = userRepository.searchUsersByRole(roleEnum, search, pageable);
+                result = userRepository.searchUsersByRole(roleEnum, safeSearch, pageable);
             }
         } else {
-            result = userRepository.searchUsers(search, pageable);
+            result = userRepository.searchUsers(safeSearch, pageable);
         }
 
         Page<UserResponse> mapped = result.map(UserResponse::fromEntity);
@@ -326,53 +321,142 @@ public class AdminService {
     }
 
     // ================================================================
-    //  CLASS MANAGEMENT
+    //  CLASS MANAGEMENT — backed by AcademicClass entity
     // ================================================================
 
     /**
-     * Returns all active classes with their student counts.
-     * Classes are derived from distinct student.className values.
-     *
-     * Note: assignment and note counts are not available here
-     * (they live in separate services). The admin frontend should
-     * call the Assignment and Notes services separately for those counts,
-     * or an API Gateway can aggregate them later.
+     * Returns all active classes from the AcademicClass table.
+     * Enriches each with the current student count from the User table.
      */
     @Transactional(readOnly = true)
     public List<ClassOverviewResponse> getAllClasses() {
-        List<String> classNames = userRepository.findDistinctClassNames();
-
-        return classNames.stream()
-                .map(className -> {
-                    long studentCount = userRepository.countByClassNameAndRole(
-                            className, Role.STUDENT);
-
-                    // Get teacher IDs from users who have this class
-                    // (teachers don't have className, so we derive from assignments)
-                    // For now we return student count — teacher list comes from Assignment Service
-                    return ClassOverviewResponse.builder()
-                            .className(className)
-                            .totalStudents(studentCount)
-                            .build();
-                })
+        return classRepository.findByActiveTrue().stream()
+                .map(this::toClassOverview)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Returns details for a specific class.
+     * Returns details for a specific class by name.
      */
     @Transactional(readOnly = true)
     public ClassOverviewResponse getClassDetails(String className) {
-        long studentCount = userRepository.countByClassNameAndRole(className, Role.STUDENT);
+        AcademicClass cls = classRepository.findByClassName(className)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + className));
+        return toClassOverview(cls);
+    }
 
-        if (studentCount == 0) {
-            throw new ResourceNotFoundException("Class not found: " + className);
+    /**
+     * Creates a new class.
+     * Validates that the className is unique.
+     */
+    @Transactional
+    public ClassOverviewResponse createClass(ClassUpsertRequest request,
+                                              Long adminId, String adminName) {
+        if (classRepository.existsByClassName(request.getClassName())) {
+            throw new IllegalArgumentException(
+                    "Class already exists: " + request.getClassName());
         }
 
-        return ClassOverviewResponse.builder()
-                .className(className)
-                .totalStudents(studentCount)
+        AcademicClass cls = AcademicClass.builder()
+                .className(request.getClassName())
+                .academicYear(request.getAcademicYear())
+                .capacity(request.getCapacity())
+                .teacherId(request.getTeacherId())
+                .active(true)
                 .build();
+
+        AcademicClass saved = classRepository.save(cls);
+
+        activityLogService.log(
+                ActivityType.CLASS_CREATED,
+                String.format("Admin created class %s (%s)", saved.getClassName(), saved.getAcademicYear()),
+                adminId, adminName, "ADMIN",
+                saved.getId(), "CLASS", null
+        );
+
+        return toClassOverview(saved);
+    }
+
+    /**
+     * Updates an existing class.
+     */
+    @Transactional
+    public ClassOverviewResponse updateClass(String className, ClassUpsertRequest request,
+                                              Long adminId, String adminName) {
+        AcademicClass cls = classRepository.findByClassName(className)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + className));
+
+        // If renaming, check the new name isn't taken
+        if (!cls.getClassName().equals(request.getClassName())
+                && classRepository.existsByClassName(request.getClassName())) {
+            throw new IllegalArgumentException(
+                    "Class name already in use: " + request.getClassName());
+        }
+
+        cls.setClassName(request.getClassName());
+        cls.setAcademicYear(request.getAcademicYear());
+        cls.setCapacity(request.getCapacity());
+        if (request.getTeacherId() != null) {
+            cls.setTeacherId(request.getTeacherId());
+        }
+
+        AcademicClass saved = classRepository.save(cls);
+
+        activityLogService.log(
+                ActivityType.CLASS_UPDATED,
+                String.format("Admin updated class %s", saved.getClassName()),
+                adminId, adminName, "ADMIN",
+                saved.getId(), "CLASS", null
+        );
+
+        return toClassOverview(saved);
+    }
+
+    /**
+     * Assigns a teacher to a class.
+     * The teacher immediately sees this class in their dashboard.
+     */
+    @Transactional
+    public ClassOverviewResponse assignTeacher(String className, Long teacherId,
+                                                Long adminId, String adminName) {
+        AcademicClass cls = classRepository.findByClassName(className)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + className));
+
+        User teacher = userRepository.findById(teacherId)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found: " + teacherId));
+
+        cls.setTeacherId(teacherId);
+        AcademicClass saved = classRepository.save(cls);
+
+        activityLogService.log(
+                ActivityType.TEACHER_ASSIGNED_TO_CLASS,
+                String.format("Admin assigned %s to class %s", teacher.getFullName(), className),
+                adminId, adminName, "ADMIN",
+                saved.getId(), "CLASS",
+                "teacherId=" + teacherId
+        );
+
+        return toClassOverview(saved);
+    }
+
+    /**
+     * Soft-deletes a class (sets active = false).
+     * Students and teachers retain their data but the class no longer appears.
+     */
+    @Transactional
+    public void deleteClass(String className, Long adminId, String adminName) {
+        AcademicClass cls = classRepository.findByClassName(className)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + className));
+
+        cls.setActive(false);
+        classRepository.save(cls);
+
+        activityLogService.log(
+                ActivityType.CLASS_UPDATED,
+                String.format("Admin deactivated class %s", className),
+                adminId, adminName, "ADMIN",
+                cls.getId(), "CLASS", null
+        );
     }
 
     /**
@@ -387,11 +471,47 @@ public class AdminService {
     }
 
     /**
+     * Returns all classes assigned to a specific teacher.
+     * Used by the teacher dashboard to show assigned classes immediately.
+     */
+    @Transactional(readOnly = true)
+    public List<ClassOverviewResponse> getClassesByTeacher(Long teacherId) {
+        return classRepository.findByTeacherIdAndActiveTrue(teacherId).stream()
+                .map(this::toClassOverview)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Returns all distinct academic years in the system.
      */
     @Transactional(readOnly = true)
     public List<String> getAcademicYears() {
         return userRepository.findDistinctAcademicYears();
+    }
+
+    // ================================================================
+    //  Internal helpers
+    // ================================================================
+
+    private ClassOverviewResponse toClassOverview(AcademicClass cls) {
+        long studentCount = userRepository.countByClassNameAndRole(cls.getClassName(), Role.STUDENT);
+
+        String teacherName = null;
+        if (cls.getTeacherId() != null) {
+            teacherName = userRepository.findById(cls.getTeacherId())
+                    .map(User::getFullName)
+                    .orElse(null);
+        }
+
+        return ClassOverviewResponse.builder()
+                .className(cls.getClassName())
+                .academicYear(cls.getAcademicYear())
+                .capacity(cls.getCapacity())
+                .active(cls.isActive())
+                .totalStudents(studentCount)
+                .teacherId(cls.getTeacherId())
+                .teacherName(teacherName)
+                .build();
     }
 
     /**

@@ -106,6 +106,9 @@ public class AuthService {
                 .userId(user.getId())
                 .email(user.getEmail())
                 .role(user.getRole().name())
+                .fullName(user.getFullName())
+                .className(user.getClassName())
+                .academicYear(user.getAcademicYear())
                 .build();
     }
 
@@ -113,12 +116,25 @@ public class AuthService {
     //  Logout
     // ----------------------------------------------------------------
 
+  /**
+     * Invalidates the refresh token for the given user (admin, teacher, or student).
+     * Removes the row from the database so it cannot be used to obtain new access tokens.
+     */
     @Transactional
     public void logout(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with id: " + userId));
-        refreshTokenService.deleteByUser(user);
+        if (!userRepository.existsById(userId)) {
+            return;
+        }
+        refreshTokenService.deleteByUserId(userId);
+    }
+
+    /**
+     * Invalidates the refresh token string sent by the client on logout.
+     * Works for any role; preferred over userId because it does not depend on localStorage user id.
+     */
+    @Transactional
+    public void logoutByRefreshToken(String refreshToken) {
+        refreshTokenService.deleteByToken(refreshToken);
     }
 
     // ----------------------------------------------------------------
@@ -137,6 +153,9 @@ public class AuthService {
                 .userId(user.getId())
                 .email(user.getEmail())
                 .role(user.getRole().name())
+                .fullName(user.getFullName())
+                .className(user.getClassName())
+                .academicYear(user.getAcademicYear())
                 .build();
     }
 }

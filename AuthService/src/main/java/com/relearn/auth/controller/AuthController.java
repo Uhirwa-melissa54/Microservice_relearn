@@ -66,10 +66,19 @@ public class AuthController {
 
     @PostMapping("/logout")
     @Operation(summary = "Logout",
-               description = "Invalidates the user's refresh token. The client should discard the access token locally.")
+               description = "Deletes the refresh token from the database. Send refreshToken in the body " +
+                             "(recommended) or userId as a query parameter. Works for admin, teacher, and student.")
     @ApiResponse(responseCode = "204", description = "Logged out successfully")
-    public ResponseEntity<Void> logout(@RequestParam Long userId) {
-        authService.logout(userId);
+    public ResponseEntity<Void> logout(
+            @RequestBody(required = false) RefreshTokenRequest request,
+            @RequestParam(required = false) Long userId) {
+
+        if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
+            authService.logoutByRefreshToken(request.getRefreshToken());
+        } else if (userId != null) {
+            authService.logout(userId);
+        }
+
         return ResponseEntity.noContent().build();
     }
 }

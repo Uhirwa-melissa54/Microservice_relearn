@@ -16,6 +16,11 @@ import java.util.Optional;
 /**
  * Data access layer for User entities.
  * Supports pagination, search, and role-based filtering for admin operations.
+ *
+ * NOTE on search queries:
+ *   JPQL ':param IS NULL' is unreliable with PostgreSQL/Hibernate when the
+ *   Java value is actually null. We use a workaround: pass '' (empty string)
+ *   when no search term is provided, and match everything when search is blank.
  */
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -38,31 +43,38 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByClassNameAndRole(String className, Role role);
     long countByClassNameAndRole(String className, Role role);
 
-    /** All distinct class names that have students */
     @Query("SELECT DISTINCT u.className FROM User u WHERE u.role = 'STUDENT' AND u.className IS NOT NULL")
     List<String> findDistinctClassNames();
 
-    /** All distinct academic years */
+    @Query("SELECT DISTINCT u.className FROM User u WHERE u.role = 'STUDENT' AND u.active = true AND u.className IS NOT NULL")
+    List<String> findDistinctActiveClassNames();
+
     @Query("SELECT DISTINCT u.academicYear FROM User u WHERE u.academicYear IS NOT NULL ORDER BY u.academicYear DESC")
     List<String> findDistinctAcademicYears();
 
     // ----------------------------------------------------------------
     //  Paginated search — admin user management
+    //
+    //  The trick: pass '' when search is null/blank.
+    //  The query returns all rows when :search = '' because
+    //  LIKE '%' matches everything.
     // ----------------------------------------------------------------
 
     /**
-     * Search all users by name or email (case-insensitive), paginated.
+     * Search ALL users by name or email (case-insensitive), paginated.
+     * Pass search='' to return all users.
      */
     @Query("SELECT u FROM User u WHERE " +
-           "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "(:search = '' OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<User> searchUsers(@Param("search") String search, Pageable pageable);
 
     /**
      * Search users filtered by role, paginated.
+     * Pass search='' to return all users with that role.
      */
     @Query("SELECT u FROM User u WHERE u.role = :role AND " +
-           "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "(:search = '' OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<User> searchUsersByRole(@Param("role") Role role,
                                   @Param("search") String search,
@@ -72,7 +84,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Search users filtered by role and active status, paginated.
      */
     @Query("SELECT u FROM User u WHERE u.role = :role AND u.active = :active AND " +
-           "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "(:search = '' OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<User> searchUsersByRoleAndStatus(@Param("role") Role role,
                                            @Param("active") boolean active,
@@ -83,9 +95,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     //  Activity / stats queries
     // ----------------------------------------------------------------
 
-    /** Count users registered since a given time */
     long countByCreatedAtAfter(LocalDateTime since);
-
-    /** Count active users */
     long countByActive(boolean active);
 }

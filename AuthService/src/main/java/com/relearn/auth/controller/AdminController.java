@@ -291,24 +291,16 @@ public class AdminController {
 
     /**
      * GET /api/admin/classes
-     *
-     * Returns all active classes with student counts.
-     * Classes are derived from distinct student.className values.
-     *
-     * Note: assignment and note counts require calls to the
-     * Assignment Service and Notes Service respectively.
+     * Returns all active classes from the AcademicClass table.
      */
     @GetMapping("/classes")
-    @Operation(summary = "Get all classes",
-               description = "Returns all classes with student counts. " +
-                             "Assignment/note counts are available from their respective services.")
+    @Operation(summary = "Get all classes")
     public ResponseEntity<List<ClassOverviewResponse>> getAllClasses() {
         return ResponseEntity.ok(adminService.getAllClasses());
     }
 
     /**
      * GET /api/admin/classes/{className}
-     *
      * Returns details for a specific class.
      */
     @GetMapping("/classes/{className}")
@@ -319,9 +311,72 @@ public class AdminController {
     }
 
     /**
-     * GET /api/admin/classes/{className}/students
+     * POST /api/admin/classes
+     * Creates a new class.
      *
-     * Returns all students in a specific class.
+     * Sample: { "className": "Y1A", "academicYear": "2024-2025", "capacity": 40, "teacherId": 1 }
+     */
+    @PostMapping("/classes")
+    @Operation(summary = "Create a class")
+    public ResponseEntity<ClassOverviewResponse> createClass(
+            @Valid @RequestBody ClassUpsertRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserResponse admin = adminService.getUserById(extractAdminId(userDetails));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(adminService.createClass(request, admin.getId(), admin.getFullName()));
+    }
+
+    /**
+     * PUT /api/admin/classes/{className}
+     * Updates an existing class.
+     */
+    @PutMapping("/classes/{className}")
+    @Operation(summary = "Update a class")
+    public ResponseEntity<ClassOverviewResponse> updateClass(
+            @PathVariable String className,
+            @Valid @RequestBody ClassUpsertRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserResponse admin = adminService.getUserById(extractAdminId(userDetails));
+        return ResponseEntity.ok(
+                adminService.updateClass(className, request, admin.getId(), admin.getFullName()));
+    }
+
+    /**
+     * PATCH /api/admin/classes/{className}/assign-teacher
+     * Assigns a teacher to a class. Teacher sees it immediately in their dashboard.
+     *
+     * Sample: { "teacherId": 5 }
+     */
+    @PatchMapping("/classes/{className}/assign-teacher")
+    @Operation(summary = "Assign teacher to class",
+               description = "Teacher immediately sees this class in their dashboard.")
+    public ResponseEntity<ClassOverviewResponse> assignTeacher(
+            @PathVariable String className,
+            @Valid @RequestBody AssignTeacherRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserResponse admin = adminService.getUserById(extractAdminId(userDetails));
+        return ResponseEntity.ok(
+                adminService.assignTeacher(className, request.getTeacherId(),
+                        admin.getId(), admin.getFullName()));
+    }
+
+    /**
+     * DELETE /api/admin/classes/{className}
+     * Soft-deletes a class (sets active = false).
+     */
+    @DeleteMapping("/classes/{className}")
+    @Operation(summary = "Delete (deactivate) a class")
+    public ResponseEntity<Void> deleteClass(
+            @PathVariable String className,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserResponse admin = adminService.getUserById(extractAdminId(userDetails));
+        adminService.deleteClass(className, admin.getId(), admin.getFullName());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * GET /api/admin/classes/{className}/students
+     * Returns all students enrolled in a class.
      */
     @GetMapping("/classes/{className}/students")
     @Operation(summary = "Get students in a class")
@@ -331,14 +386,22 @@ public class AdminController {
     }
 
     /**
+     * GET /api/admin/classes/teacher/{teacherId}
+     * Returns all classes assigned to a specific teacher.
+     * Used by the teacher dashboard to show assigned classes.
+     */
+    @GetMapping("/classes/teacher/{teacherId}")
+    @Operation(summary = "Get classes assigned to a teacher")
+    public ResponseEntity<List<ClassOverviewResponse>> getClassesByTeacher(
+            @PathVariable Long teacherId) {
+        return ResponseEntity.ok(adminService.getClassesByTeacher(teacherId));
+    }
+
+    /**
      * GET /api/admin/academic-years
-     *
-     * Returns all distinct academic years in the system.
-     * Used to populate year filter dropdowns.
      */
     @GetMapping("/academic-years")
-    @Operation(summary = "Get all academic years",
-               description = "Returns distinct academic years from student records.")
+    @Operation(summary = "Get all academic years")
     public ResponseEntity<List<String>> getAcademicYears() {
         return ResponseEntity.ok(adminService.getAcademicYears());
     }

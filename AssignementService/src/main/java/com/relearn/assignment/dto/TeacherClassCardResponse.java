@@ -37,4 +37,11 @@ public class TeacherClassCardResponse {
 
     /** Assignments whose deadline has passed */
     private long overdueAssignments;
+
+    /**
+     * Number of students enrolled in this class.
+     * Populated by querying the Auth Service user count.
+     * Stored here so the frontend doesn't need a second call.
+     */
+    private long studentCount;
 }

@@ -48,10 +48,15 @@ public class TeacherAssignmentController {
     @GetMapping("/dashboard/{teacherId}")
     @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     @Operation(summary = "Get teacher dashboard",
-               description = "Returns aggregated dashboard data: stats, class cards, and recent assignments.")
+               description = "Returns aggregated dashboard data: stats, class cards (with student counts), and recent assignments.")
     public ResponseEntity<TeacherDashboardResponse> getTeacherDashboard(
-            @PathVariable Long teacherId) {
-        return ResponseEntity.ok(assignmentService.getTeacherDashboard(teacherId));
+            @PathVariable Long teacherId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        // Extract the raw token (strip "Bearer " prefix) to forward to Auth Service
+        String jwtToken = (authHeader != null && authHeader.startsWith("Bearer "))
+                ? authHeader.substring(7)
+                : null;
+        return ResponseEntity.ok(assignmentService.getTeacherDashboard(teacherId, jwtToken));
     }
 
     // ----------------------------------------------------------------

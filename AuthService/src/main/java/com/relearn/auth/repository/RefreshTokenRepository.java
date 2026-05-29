@@ -19,6 +19,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /** Delete all refresh tokens belonging to a specific user.
      *  Called on logout or when issuing a new refresh token. */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     int deleteByUser(User user);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    int deleteByUser_Id(Long userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    int deleteByToken(String token);
 }

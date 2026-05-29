@@ -14,6 +14,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * REST controller for student-specific profile operations.
  *
@@ -70,5 +72,18 @@ public class StudentController {
             @Valid @RequestBody ChangePasswordRequest request) {
         userService.changePassword(userDetails.getUsername(), request);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * GET /api/student/classes
+     *
+     * Returns all active classes registered in the system.
+     */
+    @GetMapping("/classes")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get all registered classes",
+               description = "Returns all active class names available in the system.")
+    public ResponseEntity<List<String>> getAllClasses() {
+        return ResponseEntity.ok(userService.getAllActiveStudentClasses());
     }
 }

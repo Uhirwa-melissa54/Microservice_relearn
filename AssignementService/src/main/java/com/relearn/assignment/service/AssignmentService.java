@@ -1,5 +1,6 @@
 package com.relearn.assignment.service;
 
+import com.relearn.assignment.client.UserCountClient;
 import com.relearn.assignment.dto.*;
 import com.relearn.assignment.entity.Assignment;
 import com.relearn.assignment.enums.SubmissionType;
@@ -25,6 +26,7 @@ public class AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
     private final SubmissionRepository submissionRepository;
+    private final UserCountClient userCountClient;
 
     // ================================================================
     //  TEACHER FEATURES
@@ -35,18 +37,14 @@ public class AssignmentService {
      * Aggregates: class cards, stats, recent assignments.
      */
     @Transactional(readOnly = true)
-    public TeacherDashboardResponse getTeacherDashboard(Long teacherId) {
+    public TeacherDashboardResponse getTeacherDashboard(Long teacherId, String jwtToken) {
         LocalDateTime now = LocalDateTime.now();
 
-        // Total assignments given by this teacher
         long totalAssignmentsGiven = assignmentRepository.countByTeacherId(teacherId);
+        long totalPendingReviews   = submissionRepository.countPendingReviewByTeacherId(teacherId);
 
-        // Total pending reviews (PENDING + LATE submissions)
-        long totalPendingReviews = submissionRepository.countPendingReviewByTeacherId(teacherId);
-
-        // Build class cards from distinct class+course combinations
-        List<Object[]> classCourses = assignmentRepository.findDistinctClassCourseByTeacherId(teacherId);
-        long totalClassAssignments = classCourses.size();
+        List<Object[]> classCourses       = assignmentRepository.findDistinctClassCourseByTeacherId(teacherId);
+        long totalClassAssignments        = classCourses.size();
 
         List<TeacherClassCardResponse> classCards = classCourses.stream()
                 .map(row -> {
@@ -64,6 +62,9 @@ public class AssignmentService {
                             .countByTeacherIdAndClassNameAndCourseNameAndDeadlineBefore(
                                     teacherId, className, courseName, now);
 
+                    // Fetch student count from Auth Service (graceful degradation: returns 0 on failure)
+                    long studentCount = userCountClient.getStudentCountForClass(className, jwtToken);
+
                     return TeacherClassCardResponse.builder()
                             .className(className)
                             .courseName(courseName)
@@ -71,15 +72,15 @@ public class AssignmentService {
                             .totalPendingReviews(pendingReviews)
                             .activeAssignments(activeAssignments)
                             .overdueAssignments(overdueAssignments)
+                            .studentCount(studentCount)
                             .build();
                 })
                 .collect(Collectors.toList());
 
-        // Recent 5 assignments with submission stats
         List<AssignmentWithStatsResponse> recentAssignments =
                 assignmentRepository.findByTeacherIdOrderByCreatedAtDesc(teacherId, PageRequest.of(0, 5))
                         .stream()
-                        .map(a -> enrichWithStats(a))
+                        .map(this::enrichWithStats)
                         .collect(Collectors.toList());
 
         return TeacherDashboardResponse.builder()

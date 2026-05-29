@@ -70,7 +70,10 @@ public class SecurityConfig {
                 // Student profile endpoints — any authenticated user
                 .requestMatchers("/api/student/**").authenticated()
 
-                // Teacher profile endpoints — TEACHER or ADMIN
+                // Teacher profile by ID — any authenticated user (students view uploader info)
+                .requestMatchers(HttpMethod.GET, "/api/teacher/profile/**").authenticated()
+
+                // Teacher profile & class endpoints — TEACHER or ADMIN
                 .requestMatchers("/api/teacher/**").hasAnyRole("TEACHER", "ADMIN")
 
                 // Admin portal — ADMIN only

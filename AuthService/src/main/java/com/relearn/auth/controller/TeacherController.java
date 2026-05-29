@@ -1,6 +1,7 @@
 package com.relearn.auth.controller;
 
 import com.relearn.auth.dto.*;
+import com.relearn.auth.service.AdminService;
 import com.relearn.auth.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -15,14 +16,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * REST controller for teacher-specific profile and class operations.
- *
- * Provides:
- * - Teacher profile (view, password change)
- * - Student count per class (for dashboard)
- * - Student list per class (for submissions page)
- */
 @RestController
 @RequestMapping("/api/teacher")
 @RequiredArgsConstructor
@@ -31,6 +24,7 @@ import java.util.List;
 public class TeacherController {
 
     private final UserService userService;
+    private final AdminService adminService;
 
     // ----------------------------------------------------------------
     //  GET /api/teacher/me
@@ -132,5 +126,23 @@ public class TeacherController {
     public ResponseEntity<List<UserResponse>> getStudentsByClass(
             @PathVariable String className) {
         return ResponseEntity.ok(userService.getStudentsByClass(className));
+    }
+
+    /**
+     * GET /api/teacher/assigned-classes
+     *
+     * Returns all classes assigned to the currently authenticated teacher.
+     * This is the authoritative source — admin assigns classes via the admin portal
+     * and teachers see them here immediately.
+     */
+    @GetMapping("/assigned-classes")
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
+    @Operation(summary = "Get classes assigned to this teacher",
+               description = "Returns classes from the AcademicClass table where teacherId matches. " +
+                             "Updates immediately when admin assigns a class.")
+    public ResponseEntity<List<ClassOverviewResponse>> getMyAssignedClasses(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        TeacherProfileResponse profile = userService.getTeacherProfileByEmail(userDetails.getUsername());
+        return ResponseEntity.ok(adminService.getClassesByTeacher(profile.getId()));
     }
 }

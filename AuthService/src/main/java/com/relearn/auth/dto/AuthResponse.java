@@ -28,4 +28,7 @@ public class AuthResponse {
     private Long userId;
     private String email;
     private String role;
+    private String fullName;
+    private String className;
+    private String academicYear;
 }

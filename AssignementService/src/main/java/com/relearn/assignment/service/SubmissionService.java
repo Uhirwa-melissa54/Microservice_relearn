@@ -6,6 +6,7 @@ import com.relearn.assignment.dto.SubmissionResponse;
 import com.relearn.assignment.entity.Assignment;
 import com.relearn.assignment.entity.Submission;
 import com.relearn.assignment.enums.SubmissionStatus;
+import com.relearn.assignment.enums.SubmissionType;
 import com.relearn.assignment.exception.DuplicateSubmissionException;
 import com.relearn.assignment.exception.ResourceNotFoundException;
 import com.relearn.assignment.repository.AssignmentRepository;
@@ -42,6 +43,20 @@ public class SubmissionService {
         Assignment assignment = assignmentRepository.findById(request.getAssignmentId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Assignment not found with id: " + request.getAssignmentId()));
+
+        boolean hasText = request.getSubmissionText() != null && !request.getSubmissionText().isBlank();
+        boolean hasFile = request.getFileUrl() != null && !request.getFileUrl().isBlank();
+
+        if (!hasText && !hasFile) {
+            throw new IllegalArgumentException("Submission must include text or file.");
+        }
+
+        if (assignment.getSubmissionType() == SubmissionType.TEXT_ONLY && hasFile) {
+            throw new IllegalArgumentException("This assignment accepts text submissions only.");
+        }
+        if (assignment.getSubmissionType() == SubmissionType.FILE_ONLY && hasText) {
+            throw new IllegalArgumentException("This assignment accepts file uploads only.");
+        }
 
         if (submissionRepository.findByAssignmentIdAndStudentId(
                 request.getAssignmentId(), request.getStudentId()).isPresent()) {
@@ -80,6 +95,18 @@ public class SubmissionService {
         if (LocalDateTime.now().isAfter(submission.getAssignment().getDeadline())) {
             throw new IllegalArgumentException(
                     "Cannot update submission — the assignment deadline has passed.");
+        }
+
+        boolean hasText = request.getSubmissionText() != null && !request.getSubmissionText().isBlank();
+        boolean hasFile = request.getFileUrl() != null && !request.getFileUrl().isBlank();
+        if (!hasText && !hasFile) {
+            throw new IllegalArgumentException("Submission must include text or file.");
+        }
+        if (submission.getAssignment().getSubmissionType() == SubmissionType.TEXT_ONLY && hasFile) {
+            throw new IllegalArgumentException("This assignment accepts text submissions only.");
+        }
+        if (submission.getAssignment().getSubmissionType() == SubmissionType.FILE_ONLY && hasText) {
+            throw new IllegalArgumentException("This assignment accepts file uploads only.");
         }
 
         submission.setSubmissionText(request.getSubmissionText());

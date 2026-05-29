@@ -91,4 +91,21 @@ public class RefreshTokenService {
     public void deleteByUser(User user) {
         refreshTokenRepository.deleteByUser(user);
     }
+
+    @Transactional
+    public void deleteByUserId(Long userId) {
+        refreshTokenRepository.deleteByUser_Id(userId);
+    }
+
+    /**
+     * Deletes a refresh token by its value (used on logout from the client).
+     * Idempotent — no error if the token is already gone.
+     */
+    @Transactional
+    public void deleteByToken(String token) {
+        if (token == null || token.isBlank()) {
+            return;
+        }
+        refreshTokenRepository.deleteByToken(token);
+    }
 }

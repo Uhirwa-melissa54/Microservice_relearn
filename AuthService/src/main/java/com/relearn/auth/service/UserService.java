@@ -145,4 +145,9 @@ public class UserService {
                 .map(UserResponse::fromEntity)
                 .collect(Collectors.toList());
     }
+
+    @Transactional(readOnly = true)
+    public List<String> getAllActiveStudentClasses() {
+        return userRepository.findDistinctActiveClassNames();
+    }
 }

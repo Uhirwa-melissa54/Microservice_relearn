@@ -4,8 +4,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.List;
-
 /**
  * DTO for a class overview card on the admin dashboard.
  *
@@ -29,10 +27,11 @@ public class ClassOverviewResponse {
 
     private String className;
     private String academicYear;
+    private Integer capacity;
+    private boolean active;
     private long totalStudents;
-
-    /** List of teacher names assigned to this class (derived from assignments/notes) */
-    private List<String> teacherIds;
+    private Long teacherId;
+    private String teacherName;
 
     private long totalAssignments;
     private long totalNotes;

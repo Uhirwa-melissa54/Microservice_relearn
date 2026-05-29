@@ -18,6 +18,8 @@ public class TeacherProfileResponse {
     private String fullName;
     private String email;
     private String role;
+    private String className;
+    private String academicYear;
     private LocalDateTime joinedDate;
 
     public static TeacherProfileResponse fromEntity(User user) {
@@ -26,6 +28,8 @@ public class TeacherProfileResponse {
         r.setFullName(user.getFullName());
         r.setEmail(user.getEmail());
         r.setRole(user.getRole().name());
+        r.setClassName(user.getClassName());
+        r.setAcademicYear(user.getAcademicYear());
         r.setJoinedDate(user.getCreatedAt());
         return r;
     }
