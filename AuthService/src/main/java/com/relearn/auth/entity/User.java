@@ -74,4 +74,21 @@ public class User {
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    /**
+     * Timestamp of the user's most recent successful login.
+     * Null if the user has never logged in.
+     * Used by the reminder scheduler to detect users who haven't logged in yet.
+     */
+    @Column
+    private LocalDateTime lastLoginAt;
+
+    /**
+     * When true, the user must change their password on next login.
+     * Set to true when admin creates the account (system-generated password).
+     * Set to false after the user changes their password.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean mustChangePassword = false;
 }

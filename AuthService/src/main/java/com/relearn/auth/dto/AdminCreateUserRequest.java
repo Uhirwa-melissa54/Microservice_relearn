@@ -4,14 +4,14 @@ import com.relearn.auth.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
 /**
  * DTO for admin creating a new user.
- * More flexible than the public RegisterRequest —
- * admin can set all fields including role, class, and academic year.
+ *
+ * Password is OPTIONAL — if not supplied the system auto-generates one.
+ * The generated password is returned in the response AND emailed to the user.
  */
 @Getter
 @Setter
@@ -24,22 +24,18 @@ public class AdminCreateUserRequest {
     @Email(message = "Must be a valid email address")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    /**
+     * Optional. If null or blank, the system generates a secure random password.
+     * The plain-text password is sent to the user via email.
+     */
     private String password;
 
     @NotNull(message = "Role is required")
     private Role role;
 
-    /**
-     * Required for STUDENT role.
-     * The class the student belongs to (e.g. "Y1A").
-     */
+    /** Required for STUDENT role (e.g. "Y1A") */
     private String className;
 
-    /**
-     * Required for STUDENT role.
-     * The academic year (e.g. "2024-2025").
-     */
+    /** Required for STUDENT role (e.g. "2024-2025") */
     private String academicYear;
 }

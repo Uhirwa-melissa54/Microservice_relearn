@@ -199,11 +199,16 @@ public class TeacherNoteController {
      * GET /api/teacher/notes/download/math-ch3_1715000000000.pdf
      */
     @GetMapping("/download/{filename:.+}")
-    @PreAuthorize("isAuthenticated()")
+   @PreAuthorize("permitAll()")
     @Operation(summary = "Download a note file",
                description = "Streams the file. filename comes from NoteResponse.fileUrl")
     public ResponseEntity<Resource> downloadFile(@PathVariable String filename) {
-        Resource resource = fileStorageService.loadFile(filename);
+        Resource resource;
+        try {
+            resource = fileStorageService.loadFile(filename);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.notFound().build();
+        }
 
         // Determine content type
         String contentType = "application/octet-stream";

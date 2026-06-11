@@ -10,29 +10,34 @@ import com.relearn.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 /**
  * Core authentication service.
- * Handles user registration, login, token refresh, and logout.
- * All significant events are logged to the activity log.
+ * Handles registration, login, token refresh, and logout.
+ *
+ * On login:
+ *  - Records lastLoginAt timestamp (stops reminder emails)
+ *  - Activates account if it was pending first login
+ *  - Passes mustChangePassword flag to the frontend
  */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository       userRepository;
-    private final PasswordEncoder      passwordEncoder;
-    private final JwtUtils             jwtUtils;
+    private final UserRepository        userRepository;
+    private final PasswordEncoder       passwordEncoder;
+    private final JwtUtils              jwtUtils;
     private final AuthenticationManager authenticationManager;
-    private final RefreshTokenService  refreshTokenService;
-    private final ActivityLogService   activityLogService;
+    private final RefreshTokenService   refreshTokenService;
+    private final ActivityLogService    activityLogService;
 
     // ----------------------------------------------------------------
-    //  Register
+    //  Register (public self-registration)
     // ----------------------------------------------------------------
 
     @Transactional
@@ -50,11 +55,11 @@ public class AuthService {
                 .className(request.getClassName())
                 .academicYear(request.getAcademicYear())
                 .active(true)
+                .mustChangePassword(false)
                 .build();
 
         User saved = userRepository.save(user);
 
-        // Log the registration event
         activityLogService.log(
                 ActivityType.USER_REGISTERED,
                 String.format("New %s registered: %s (%s)",
@@ -71,9 +76,10 @@ public class AuthService {
     //  Login
     // ----------------------------------------------------------------
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         // Spring Security verifies credentials — throws BadCredentialsException if wrong
-        Authentication authentication = authenticationManager.authenticate(
+        authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getEmail(),
                         request.getPassword()
@@ -83,6 +89,17 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User not found: " + request.getEmail()));
+
+        // Record the login time — this is what stops reminder emails
+        user.setLastLoginAt(LocalDateTime.now());
+
+        // Ensure account is active (covers edge case where admin created
+        // an inactive account that was since activated by login)
+        if (!user.isActive()) {
+            user.setActive(true);
+        }
+
+        userRepository.save(user);
 
         return buildAuthResponse(user);
     }
@@ -109,6 +126,7 @@ public class AuthService {
                 .fullName(user.getFullName())
                 .className(user.getClassName())
                 .academicYear(user.getAcademicYear())
+                .mustChangePassword(user.isMustChangePassword())
                 .build();
     }
 
@@ -116,22 +134,12 @@ public class AuthService {
     //  Logout
     // ----------------------------------------------------------------
 
-  /**
-     * Invalidates the refresh token for the given user (admin, teacher, or student).
-     * Removes the row from the database so it cannot be used to obtain new access tokens.
-     */
     @Transactional
     public void logout(Long userId) {
-        if (!userRepository.existsById(userId)) {
-            return;
-        }
+        if (!userRepository.existsById(userId)) return;
         refreshTokenService.deleteByUserId(userId);
     }
 
-    /**
-     * Invalidates the refresh token string sent by the client on logout.
-     * Works for any role; preferred over userId because it does not depend on localStorage user id.
-     */
     @Transactional
     public void logoutByRefreshToken(String refreshToken) {
         refreshTokenService.deleteByToken(refreshToken);
@@ -156,6 +164,7 @@ public class AuthService {
                 .fullName(user.getFullName())
                 .className(user.getClassName())
                 .academicYear(user.getAcademicYear())
+                .mustChangePassword(user.isMustChangePassword())
                 .build();
     }
 }

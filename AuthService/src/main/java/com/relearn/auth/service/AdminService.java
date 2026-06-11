@@ -16,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,6 +29,12 @@ public class AdminService {
     private final AcademicClassRepository classRepository;
     private final ActivityLogService activityLogService;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
+
+    /** Characters used for auto-generated passwords */
+    private static final String PASSWORD_CHARS =
+            "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!";
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     // ================================================================
     //  DASHBOARD
@@ -124,11 +131,13 @@ public class AdminService {
 
     /**
      * Admin creates a new user.
-     * Logs USER_REGISTERED activity.
      *
-     * @param request  user data
-     * @param adminId  ID of the admin performing the action
-     * @param adminName name of the admin
+     * If request.password is blank, the system auto-generates a secure password.
+     * The plain-text password is emailed to the user and returned in the response
+     * (one-time only — never stored in plain text after this method returns).
+     *
+     * The user's mustChangePassword flag is set to true so they are prompted
+     * to change it on first login.
      */
     @Transactional
     public UserResponse createUser(AdminCreateUserRequest request,
@@ -138,19 +147,34 @@ public class AdminService {
                     "Email already registered: " + request.getEmail());
         }
 
+        // Auto-generate password if admin did not supply one
+        String rawPassword = (request.getPassword() == null || request.getPassword().isBlank())
+                ? generatePassword(12)
+                : request.getPassword();
+
         User user = User.builder()
                 .fullName(request.getFullName())
                 .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
+                .password(passwordEncoder.encode(rawPassword))
                 .role(request.getRole())
                 .className(request.getClassName())
                 .academicYear(request.getAcademicYear())
                 .active(true)
+                .mustChangePassword(true)   // user must change on first login
                 .build();
 
         User saved = userRepository.save(user);
 
-        // Log the activity
+        // Send welcome email with credentials (async — non-blocking)
+        emailService.sendWelcomeEmail(
+                saved.getEmail(),
+                saved.getFullName(),
+                saved.getRole().name(),
+                rawPassword,
+                saved.getClassName(),
+                saved.getAcademicYear()
+        );
+
         activityLogService.log(
                 ActivityType.USER_REGISTERED,
                 String.format("Admin created %s account for %s (%s)",
@@ -161,7 +185,11 @@ public class AdminService {
                 "role=" + saved.getRole().name()
         );
 
-        return UserResponse.fromEntity(saved);
+        // Return the user response with the generated password included
+        // so admin can also see it in the UI (one-time display)
+        UserResponse response = UserResponse.fromEntity(saved);
+        response.setGeneratedPassword(rawPassword);
+        return response;
     }
 
     /**
@@ -524,5 +552,24 @@ public class AdminService {
                 userRepository.findByEmail(email)
                         .orElseThrow(() -> new ResourceNotFoundException(
                                 "User not found with email: " + email)));
+    }
+
+    // ----------------------------------------------------------------
+    //  Internal helpers
+    // ----------------------------------------------------------------
+
+    /**
+     * Generates a cryptographically secure random password.
+     * Uses a mix of uppercase, lowercase, digits, and symbols.
+     * Excludes ambiguous characters (0, O, 1, l, I) for readability.
+     *
+     * @param length desired password length (minimum 8 recommended)
+     */
+    private String generatePassword(int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(PASSWORD_CHARS.charAt(RANDOM.nextInt(PASSWORD_CHARS.length())));
+        }
+        return sb.toString();
     }
 }

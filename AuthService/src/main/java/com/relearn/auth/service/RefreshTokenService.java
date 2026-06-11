@@ -5,7 +5,7 @@ import com.relearn.auth.entity.User;
 import com.relearn.auth.exception.TokenRefreshException;
 import com.relearn.auth.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Value; 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

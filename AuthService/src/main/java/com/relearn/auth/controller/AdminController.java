@@ -290,6 +290,19 @@ public class AdminController {
     // ================================================================
 
     /**
+     * GET /api/admin/classes/teacher/{teacherId}
+     * Returns all classes assigned to a specific teacher.
+     * IMPORTANT: This must be declared BEFORE /classes/{className} to avoid
+     * Spring matching "teacher" as a className path variable.
+     */
+    @GetMapping("/classes/teacher/{teacherId}")
+    @Operation(summary = "Get classes assigned to a teacher")
+    public ResponseEntity<List<ClassOverviewResponse>> getClassesByTeacher(
+            @PathVariable Long teacherId) {
+        return ResponseEntity.ok(adminService.getClassesByTeacher(teacherId));
+    }
+
+    /**
      * GET /api/admin/classes
      * Returns all active classes from the AcademicClass table.
      */
@@ -302,6 +315,7 @@ public class AdminController {
     /**
      * GET /api/admin/classes/{className}
      * Returns details for a specific class.
+     * NOTE: Declared after /classes/teacher/{id} to avoid path conflict.
      */
     @GetMapping("/classes/{className}")
     @Operation(summary = "Get class details")
@@ -383,18 +397,6 @@ public class AdminController {
     public ResponseEntity<List<UserResponse>> getStudentsByClass(
             @PathVariable String className) {
         return ResponseEntity.ok(adminService.getStudentsByClass(className));
-    }
-
-    /**
-     * GET /api/admin/classes/teacher/{teacherId}
-     * Returns all classes assigned to a specific teacher.
-     * Used by the teacher dashboard to show assigned classes.
-     */
-    @GetMapping("/classes/teacher/{teacherId}")
-    @Operation(summary = "Get classes assigned to a teacher")
-    public ResponseEntity<List<ClassOverviewResponse>> getClassesByTeacher(
-            @PathVariable Long teacherId) {
-        return ResponseEntity.ok(adminService.getClassesByTeacher(teacherId));
     }
 
     /**

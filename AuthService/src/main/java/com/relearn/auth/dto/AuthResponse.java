@@ -15,20 +15,21 @@ import lombok.Setter;
 @AllArgsConstructor
 public class AuthResponse {
 
-    /** Short-lived JWT — sent in Authorization header for every API call */
     private String accessToken;
-
-    /** Long-lived token — used only to get a new access token */
     private String refreshToken;
-
-    /** Token type, always "Bearer" */
     private final String tokenType = "Bearer";
 
-    /** The authenticated user's basic info */
-    private Long userId;
+    private Long   userId;
     private String email;
     private String role;
     private String fullName;
     private String className;
     private String academicYear;
+
+    /**
+     * True when the user must change their password on next login.
+     * Set to true for admin-created accounts with auto-generated passwords.
+     * Frontend should redirect to a change-password screen when this is true.
+     */
+    private boolean mustChangePassword;
 }

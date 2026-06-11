@@ -97,4 +97,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByCreatedAtAfter(LocalDateTime since);
     long countByActive(boolean active);
+
+    // ----------------------------------------------------------------
+    //  Login reminder query
+    // ----------------------------------------------------------------
+
+    /**
+     * Finds active users who have NEVER logged in and whose account
+     * was created before the given cutoff time.
+     * Used by LoginReminderScheduler to send reminder emails.
+     */
+    List<User> findByActiveAndLastLoginAtIsNullAndCreatedAtBefore(
+            boolean active, LocalDateTime createdBefore);
 }
