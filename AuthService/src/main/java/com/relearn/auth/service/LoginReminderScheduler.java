@@ -31,17 +31,10 @@ public class LoginReminderScheduler {
     private final UserRepository userRepository;
     private final EmailService   emailService;
 
-    /**
-     * Runs every 6 hours.
-     * Cron expression: second minute hour day-of-month month day-of-week
-     */
     @Scheduled(cron = "${app.reminder.cron:0 0 */6 * * *}")
     public void sendLoginReminders() {
         LocalDateTime oneDayAgo = LocalDateTime.now().minusDays(1);
 
-        // Find active users who:
-        //  1. Have NEVER logged in (lastLoginAt is null)
-        //  2. Were created more than 1 day ago (so we don't spam brand-new accounts)
         List<User> neverLoggedIn = userRepository
                 .findByActiveAndLastLoginAtIsNullAndCreatedAtBefore(true, oneDayAgo);
 
